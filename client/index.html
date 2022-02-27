@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatting App</title>
+</head>
+
+<body style="margin: 0px;">
+    <div style="display: flex; flex-direction: column;height: 100vh;">
+
+        <div style="padding: 20px">
+            <input type="text" id="username" placeholder="Username" />
+            <input type="password" id="password" placeholder="Password" />
+            <button onclick='pvtOnLoginBtnClick()'>Login</button>
+
+            <div id="error"></div>
+
+            <label for="users">Choose a User:</label>
+            <select style="margin-top: 20px;width:200px;" onchange="pvtOnUserChange()" placeholder="Select User"
+                id="users"></select>
+        </div>
+
+        <div id="messagearea" style="margin: 0 20px 0px 20px; flex: 1; border: 1px solid gray; overflow: auto;">
+
+        </div>
+
+        <div style="display: flex; flex-direction: row; margin: 0 20px 20px 20px;">
+            <input type="text" id="message" placeholder="Message" style="flex:1; height: 35px;" />
+            <button onclick='pvtSendMessage()'>Send</button>
+        </div>
+    </div>
+</body>
+<script>
+
+    const FWebSocket = new WebSocket('ws://192.168.43.180:8888');
+
+    var FUsername = document.getElementById('username'),
+        FPassword = document.getElementById('password'),
+        FError = document.getElementById('error'),
+        FMessage = document.getElementById('message'),
+        FMessageArea = document.getElementById('messagearea'),
+        FUsers = document.getElementById('users');
+
+    function pvtOnLoginBtnClick() {
+
+        var LObj = {
+            username: FUsername.value,
+            password: FPassword.value,
+            isFromLoginIn: true
+        };
+
+        FWebSocket.send(JSON.stringify(LObj));
+    }
+
+    function pvtUpdateMessageOnUI(p_arrRecords) {
+
+        p_arrRecords = p_arrRecords || [];
+
+        var LHtml = '',
+            LTextAlign = '',
+            LDispName;
+
+        p_arrRecords.forEach(function (p_objRecord) {
+
+            LTextAlign = 'text-align: left;';
+            LDispName = p_objRecord.username;
+
+            if (p_objRecord.username === FUsername.value) {
+
+                LDispName = 'Me';
+                LTextAlign = 'text-align: right;';
+            }//if..
+
+            LHtml += '<div style="margin: 5px; border: 2px solid grey; ' + LTextAlign + '"> ' +
+                '<div style="font-weight: bold"> ' + LDispName + ' </div>' +
+                '<div>' + p_objRecord.message + '</div></div>';
+        });
+
+        FMessageArea.innerHTML += LHtml;
+    }
+
+    function pvtSendMessage() {
+
+        var LObj = {
+            username: FUsername.value,
+            password: FPassword.value,
+            toUsername: FUsers.value,
+            message: FMessage.value
+        };
+
+        pvtUpdateMessageOnUI([LObj]);
+
+        FMessage.value = '';
+        FMessage.focus();
+
+        //sending to server
+        FWebSocket.send(JSON.stringify(LObj));
+    }
+
+    FWebSocket.addEventListener('open', () => {
+
+        console.log('Connected');
+    });
+
+    //On message recieve from sever
+    FWebSocket.addEventListener('message', e => {
+
+        console.log(e);
+        var LServerData = e.data;
+
+        LServerData = JSON.parse(LServerData);
+
+        if (LServerData.success === false) {
+
+            FError.innerHTML = '<p style="color: red">' + LServerData.message + '</p>';
+            return;
+        }//if..
+
+        FError.innerHTML = '';
+
+        if (LServerData.isFromLoginIn === true) {
+            var LHtml = '';
+
+            LServerData.availableUsers.forEach(p_objRecord => {
+                if (p_objRecord.username === FUsername.value) {
+                    return true;
+                }
+                LHtml += '<option value="' + p_objRecord.username + '">' + p_objRecord.username + '</option>';
+            });
+            FUsers.innerHTML = LHtml;
+            // return;
+        }//if..
+
+        FMessageArea.innerHTML = '';
+
+        pvtUpdateMessageOnUI(LServerData.messages);
+    });
+
+    function pvtOnUserChange() {
+
+        FMessageArea.innerHTML = '';
+
+        var LObj = {
+            username: FUsername.value,
+            password: FPassword.value,
+            toUsername: FUsers.value,
+            userChange: true
+        };
+
+        //sending to server
+        FWebSocket.send(JSON.stringify(LObj));
+    }
+
+</script>
+
+</html>
